@@ -1,6 +1,8 @@
 package domain;
+//import domain.VehicleType;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.*;
 
 import domain.parking.*;
@@ -55,7 +57,9 @@ public class ParkingLot {
         for (Floor f : floors) {
             for (Row r : f.getRows()) {
                 for (ParkingSpot s : r.getSpots()) {
-                    if (s.canFit(v)) result.add(s);
+                    if (s.canFit(v)) {
+                        result.add(s);
+                    }
                 }
             }
         }
@@ -109,6 +113,7 @@ public class ParkingLot {
     //     return getSpotByID(t.getSpotID());
     // }
 
+    // ---------------------------- FINES ---------------------------------------------------
     public void setFineScheme(FineScheme scheme) {
         if (scheme == null) {
             throw new IllegalArgumentException("Fine scheme cannot be null.");
@@ -127,6 +132,12 @@ public class ParkingLot {
         return sum;
     }
 
+    private void addUnpaidFine(String plate, double amount, LocalDateTime now) {
+        if (amount <= 0) return;
+        finesByPlate.computeIfAbsent(plate, k -> new ArrayList<>())
+        .add(new FineRecord(plate, FineReason.OVER_24HOURS, amount, now));
+    }
+
     private void markAllFinesPaid(String plate) {
         java.util.List<FineRecord> list = finesByPlate.get(plate);
         if (list == null) return;
@@ -135,8 +146,23 @@ public class ParkingLot {
         }
     }
 
+    private double HourlyOverstayFine(LocalDateTime entry, LocalDateTime exit) {
+        long minutes = Duration.between(entry, exit).toMinutes();
+        if (minutes <= 1440) return 0.0; // 24h = 1440 minutes
+
+        long overMinutes = minutes - 1440;
+
+        int overHours = (int) Math.ceil(overMinutes / 60.0);
+        overHours = Math.max(overHours, 1);
+
+        return 20.0 * overHours;
+    }
+    // --------------------------------------------------------------------------------------
+
     public Bill buildBill(String plate, LocalDateTime now) {
-        if (plate == null) throw new IllegalArgumentException("Plate cannot be empty.");
+        if (plate == null){
+            throw new IllegalArgumentException("Plate cannot be empty.");
+        }
         String cleanPlate = plate.trim().toUpperCase();
 
         Ticket ticket = activeTicketsByPlate.get(cleanPlate);
@@ -148,6 +174,18 @@ public class ParkingLot {
 
         int hours = computeChargedHours(ticket.getEntryTime(), now);
         double rate = spot.getHourlyRate();
+
+        // Gets a discounted price of RM 2/hour only for a handicapped card holder
+        Vehicle parked = spot.getCurrentVehicle();
+        if (parked != null && parked.getType() == VehicleType.HANDICAPPED && parked.isHandicapped()) {
+            rate = 2.0;
+
+            // Free if handicapped vehicle has card AND parks in handicapped spot
+            if (spot.getType() == SpotType.HANDICAPPED) {
+                rate = 0.0;
+            }
+        }
+
         double parkingFee = rate * hours;
 
         double unpaidPrevious = getUnpaidFineTotal(cleanPlate);
@@ -166,44 +204,58 @@ public class ParkingLot {
     }
 
 
-    public Receipt payAndExit(String plate, Payment payment, LocalDateTime now) {
-        Bill bill = buildBill(plate, now);
+    public Receipt payAndExit(String plate, Payment payment, LocalDateTime now, boolean payFinesNow) {
+        domain.payment.Bill bill = buildBill(plate, now);
 
-        if (payment.getAmountPaid() < bill.getTotalDue()) {
-            throw new IllegalStateException("Insufficient payment. Total due: RM " + bill.getTotalDue());
+        // Parking fee must always be paid to exit
+        double mustPay = bill.getParkingFee();
+
+        // If fines paid now, must pay in full
+        if (payFinesNow) {
+            mustPay = bill.getTotalDue(); // parking + unpaid previous + fine due now
         }
 
-        double change = payment.getAmountPaid() - bill.getTotalDue();
-        totalRevenue += bill.getTotalDue();
+        if (payment.getAmountPaid() < mustPay) {
+            throw new IllegalStateException("Insufficient payment. Minimum required: RM " + mustPay);
+        }
 
-        // if a new fine is due now, record it as unpaid first then pay it in this transaction
+        // add the new fine to account (unpaid first)
         if (bill.getFineDueNow() > 0) {
-            FineRecord f = new FineRecord(
-                bill.getPlate(),
-                FineReason.OVER_24_HOURS, 
-                bill.getFineDueNow(),
-                now
-            );
-            finesByPlate.computeIfAbsent(bill.getPlate(), k -> new ArrayList<>()).add(f);
+            addUnpaidFine(bill.getPlate(), bill.getFineDueNow(), now);
         }
 
-        // Mark all fines for this plate as paid (previous + new)
-        markAllFinesPaid(bill.getPlate());
+        // if user chooses to pay fines now, mark them all paid
+        if (payFinesNow) {
+            markAllFinesPaid(bill.getPlate());
+        }
 
-        // Release spot + remove ticket
+        // revenue: always add the parking fee; if paying fines, add them too
+        totalRevenue += bill.getParkingFee();
+        if (payFinesNow) {
+            totalRevenue += bill.getUnpaidFinesPrevious() + bill.getFineDueNow();
+        }
+
+        // release spot + remove ticket
         Ticket t = activeTicketsByPlate.remove(bill.getPlate());
-        ParkingSpot spot = getSpotByID(t.getSpotID());
+        domain.parking.ParkingSpot spot = getSpotByID(t.getSpotID());
         spot.vacate();
 
+        double change = payment.getAmountPaid() - mustPay;
+
+        // if they didn't pay fines, remaining unpaid fine total should be visible on receipt
+        double remainingUnpaid = getUnpaidFineTotal(bill.getPlate());
+
         return new Receipt(
-            bill.getPlate(),
-            bill.getTotalDue(),
-            payment.getAmountPaid(),
-            change,
-            payment.getMethod(),
-            payment.getTimestamp()
+                bill.getPlate(),
+                mustPay,      // amount charged in this transaction
+                payment.getAmountPaid(),
+                change,
+                payment.getMethod(),
+                payment.getTimestamp(),
+                remainingUnpaid
         );
     }
+    
     public double getTotalRevenue() { return totalRevenue; }
 
     public int getOccupiedCount() {
@@ -236,6 +288,7 @@ public class ParkingLot {
         return list;
     }
 
+    // ---------- Reports for fines -------------------------
     public java.util.List<String> getFinesReport() {
         java.util.List<String> out = new java.util.ArrayList<>();
         for (var e : finesByPlate.entrySet()) {

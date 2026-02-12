@@ -21,6 +21,7 @@ public class ParkingSpot {
     public double getHourlyRate() { return hourlyRate; }
     public boolean isOccupied() { return occupied; }
     public String getParkedPlate() { return parkedPlate; }
+    public Vehicle getCurrentVehicle() { return currentVehicle; }
 
     public boolean canFit(Vehicle v) {
         if (type == SpotType.RESERVED) {
@@ -34,7 +35,7 @@ public class ParkingSpot {
             case SUV_TRUCK:
                 return type == SpotType.REGULAR;
             case HANDICAPPED:
-                return true; // handicapped vehicle can park anywhere (pricing handled later)
+                return true; // handicapped vehicle can park anywhere
             default:
                 return false;
         }
@@ -54,11 +55,19 @@ public class ParkingSpot {
     }
 
     public String getCurrentVehiclePlate() {
-        return currentVehicle == null ? "" : currentVehicle.getPlate();
+        if (currentVehicle == null) {
+            return "";
+        } else {
+            return currentVehicle.getPlate();
+        }
     }
 
     @Override
     public String toString() {
-        return spotID + " (" + type + ")" + (occupied ? " OCCUPIED" : " AVAILABLE");
+        if (occupied) {
+            return spotID + " (" + type + ") OCCUPIED";
+        } else {
+            return spotID + " (" + type + ") AVAILABLE";
+        }
     }
 }

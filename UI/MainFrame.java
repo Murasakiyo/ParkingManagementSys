@@ -19,6 +19,7 @@ public class MainFrame extends JFrame {
     private final JComboBox<VehicleType> vehicleTypeBox = new JComboBox<>(VehicleType.values());
     private final JCheckBox handicappedCardBox = new JCheckBox("Handicapped card holder");
     private final JCheckBox reservationBox = new JCheckBox("Has reservation");
+    private final JCheckBox payFinesBox = new JCheckBox("Pay fines now");
 
     // Table
     private final DefaultTableModel spotsModel = new DefaultTableModel(
@@ -39,6 +40,7 @@ public class MainFrame extends JFrame {
 
     // Admin
     private final JComboBox<String> schemeBox = new JComboBox<>(new String[]{"Fixed", "Progressive", "Hourly"});
+    private String currentScheme = "Fixed";
 
     // ------------------------------------------------------------------------------------------------------------------------
     public MainFrame(ParkingService service) {
@@ -73,7 +75,7 @@ public class MainFrame extends JFrame {
             List<ParkingSpot> spots = service.searchSpots(plate, type, card);
             refillSpotsTable(spots);
 
-            ticketArea.setText("Found " + spots.size() + " suitable available spots.\nSelect one and click Park.");
+            ticketArea.setText("Found " + service.getAvailable() + " suitable available spots.\nSelect one and click Park.");
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -158,23 +160,25 @@ public class MainFrame extends JFrame {
                 (domain.payment.PaymentMethod) payMethodBox.getSelectedItem();
 
             double amountPaid = Double.parseDouble(amountPaidField.getText().trim());
+            boolean payFinesNow = payFinesBox.isSelected();
 
-            domain.payment.Receipt receipt = service.payAndExit(plate, method, amountPaid);
+            domain.payment.Receipt receipt = service.payAndExit(plate, method, amountPaid, payFinesNow);
 
             billArea.setText(
                 "Receipt:\n" +
                 "Plate: " + receipt.getPlate() + "\n" +
                 "Paid by: " + receipt.getMethod() + "\n" +
-                "Total due: RM " + receipt.getTotalDue() + "\n" +
+                "Charged this exit: RM " + receipt.getTotalDue() + "\n" +
                 "Amount paid: RM " + receipt.getAmountPaid() + "\n" +
                 "Change: RM " + receipt.getChange() + "\n" +
+                "Remaining unpaid fines: RM " + receipt.getRemainingUnpaidFines() + "\n" +
                 "Time: " + receipt.getTimestamp() + "\n"
             );
 
             // Clear exit inputs
             amountPaidField.setText("");
 
-            // refresh entry spot list
+            // Refresh entry spot list
             onSearch();
 
         } catch (NumberFormatException ex) {
@@ -226,7 +230,7 @@ public class MainFrame extends JFrame {
 
         exitPanel.add(new JLabel("Amount paid (RM):"));
         exitPanel.add(amountPaidField);
-
+        exitPanel.add(payFinesBox);
         JButton payExitBtn = new JButton("Pay & Exit");
         exitPanel.add(payExitBtn);
 
@@ -272,17 +276,20 @@ public class MainFrame extends JFrame {
 
             if ("Fixed".equals(select)) {
                 service.changeFineSchemeToFixed(50.0);
+                currentScheme = "Fixed";
             } else if ("Progressive".equals(select)) {
                 service.changeFineSchemeToProgressive(30.0, 10.0);
+                currentScheme = "Progressive";
             } else {
-                service.changeFineSchemeToHourly(15.0);
+                service.changeFineSchemeToHourly(20.0);
+                currentScheme = "Hourly";
             }
 
             JOptionPane.showMessageDialog(this, "Fine scheme applied for future entries.");
         });
 
         refreshBtn.addActionListener(e -> {
-            adminArea.setText(service.AdminSummary());
+            adminArea.setText(service.AdminSummary(currentScheme));
         });
 
         panel.add(top, BorderLayout.NORTH);
@@ -298,7 +305,7 @@ public class MainFrame extends JFrame {
         top.add(reportBtn);
 
         reportBtn.addActionListener(e -> {
-            reportArea.setText(service.buildReport());
+            reportArea.setText(service.ReportSummary());
         });
 
         panel.add(top, BorderLayout.NORTH);
