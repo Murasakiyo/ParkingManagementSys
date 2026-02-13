@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 public class FineCalculator {
 
     // Overstay threshold in minutes: 24h = 1440 minutes
-    private static final long OVERSTAY_THRESHOLD_MINUTES = 1440;
+    private static final long OVERSTAY_THRESHOLD_MINUTES = 1;
 
     public double computeOverstayFine(LocalDateTime entry, LocalDateTime exit, FineScheme scheme) {
         long minutes = Duration.between(entry, exit).toMinutes();

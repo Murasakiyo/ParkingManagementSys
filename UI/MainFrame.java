@@ -5,6 +5,7 @@ import javax.swing.table.DefaultTableModel;
 import domain.Ticket;
 import domain.VehicleType;
 import domain.parking.ParkingSpot;
+import domain.payment.Bill;
 import service.ParkingService;
 
 import java.awt.*;
@@ -41,6 +42,7 @@ public class MainFrame extends JFrame {
     // Admin
     private final JComboBox<String> schemeBox = new JComboBox<>(new String[]{"Fixed", "Progressive", "Hourly"});
     private String currentScheme = "Fixed";
+    private int increment = 1;
 
     // ------------------------------------------------------------------------------------------------------------------------
     public MainFrame(ParkingService service) {
@@ -133,21 +135,32 @@ public class MainFrame extends JFrame {
     private void onCalculateBill() {
         try {
             String plate = exitPlateField.getText();
-            domain.payment.Bill bill = service.calculateBill(plate);
+            Bill bill = service.calculateBill(plate);
 
-            billArea.setText(
-                "Bill:\n" +
-                "Plate: " + bill.getPlate() + "\n" +
-                "Entry: " + bill.getEntryTime() + "\n" +
-                "Exit: " + bill.getExitTime() + "\n" +
-                "Hours charged: " + bill.getHoursCharged() + "\n" +
-                "Rate: RM " + bill.getHourlyRate() + " / hr\n" +
-                "Parking fee: RM " + bill.getParkingFee() + "\n" +
-                "Unpaid fines (previous): RM " + bill.getUnpaidFinesPrevious() + "\n" +
-                "Fine due now: RM " + bill.getFineDueNow() + "\n" +
-                "Total due: RM " + bill.getTotalDue() + "\n"
-            );
+            StringBuilder sb = new StringBuilder();
+            sb.append("BILL (Exit)\n");
+            sb.append("Plate: ").append(bill.getPlate()).append("\n");
+            sb.append("Entry time: ").append(bill.getEntryTime()).append("\n");
+            sb.append("Exit time: ").append(bill.getExitTime()).append("\n");
 
+            sb.append("Hours charged: ").append(bill.getHoursCharged()).append("\n");
+            sb.append("Hourly rate applied: RM ").append(bill.getHourlyRate()).append(" / hour\n");
+            sb.append("Parking fee: RM ")
+            .append(bill.getParkingFee())
+            .append(" (")
+            .append(bill.getHoursCharged())
+            .append(" x RM ")
+            .append(bill.getHourlyRate())
+            .append(")\n");
+
+            sb.append("\nFINES\n");
+            sb.append("Unpaid fines (previous): RM ").append(bill.getUnpaidFinesPrevious()).append("\n");
+            sb.append("Fine due now: RM ").append(bill.getFineDueNow()).append("\n");
+
+            sb.append("\nTOTAL\n");
+            sb.append("Total due: RM ").append(bill.getTotalDue()).append("\n");
+
+            billArea.setText(sb.toString());
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -271,6 +284,7 @@ public class MainFrame extends JFrame {
         top.add(applySchemeBtn);
         top.add(refreshBtn);
 
+        // Overstay over 24 HOURS
         applySchemeBtn.addActionListener(e -> {
             String select = (String) schemeBox.getSelectedItem();
 
@@ -278,7 +292,7 @@ public class MainFrame extends JFrame {
                 service.changeFineSchemeToFixed(50.0);
                 currentScheme = "Fixed";
             } else if ("Progressive".equals(select)) {
-                service.changeFineSchemeToProgressive(30.0, 10.0);
+                service.changeFineSchemeToProgressive();
                 currentScheme = "Progressive";
             } else {
                 service.changeFineSchemeToHourly(20.0);
@@ -300,12 +314,42 @@ public class MainFrame extends JFrame {
 
     private JPanel ReportsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
-        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton reportBtn = new JButton("Generate Report");
-        top.add(reportBtn);
 
-        reportBtn.addActionListener(e -> {
-            reportArea.setText(service.ReportSummary());
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+
+        JComboBox<String> reportTypeBox = new JComboBox<>(
+                new String[]{
+                        "Current Vehicles",
+                        "Occupancy Report",
+                        "Revenue Report",
+                        "Outstanding Fines"
+                });
+
+        JButton generateBtn = new JButton("Generate Report");
+
+        top.add(new JLabel("Select Report:"));
+        top.add(reportTypeBox);
+        top.add(generateBtn);
+
+        reportArea.setEditable(false);
+
+        generateBtn.addActionListener(e -> {
+            String selected = (String) reportTypeBox.getSelectedItem();
+
+            switch (selected) {
+                case "Current Vehicles":
+                    reportArea.setText(service.CurrentVehiclesReport());
+                    break;
+                case "Occupancy Report":
+                    reportArea.setText(service.OccupancyReport());
+                    break;
+                case "Revenue Report":
+                    reportArea.setText(service.RevenueReport());
+                    break;
+                case "Outstanding Fines":
+                    reportArea.setText(service.FineReport());
+                    break;
+            }
         });
 
         panel.add(top, BorderLayout.NORTH);

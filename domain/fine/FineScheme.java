@@ -5,4 +5,6 @@ public interface FineScheme {
 
     // units = how many "hours" the fine is based on
     double compute(int units);
+
+    boolean allowsUnpaidExit();
 }

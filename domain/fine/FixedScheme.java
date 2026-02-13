@@ -16,4 +16,9 @@ public class FixedScheme implements FineScheme {
     public double compute(int units) {
         return fixedAmount; // ignores units
     }
+
+    @Override
+    public boolean allowsUnpaidExit() {
+        return false;
+    }
 }

@@ -2,6 +2,12 @@ package service;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+
 import domain.ParkingLot;
 import domain.Ticket;
 import domain.Vehicle;
@@ -76,8 +82,8 @@ public class ParkingService {
         lot.setFineScheme(new FixedScheme(amount));
     }
 
-    public void changeFineSchemeToProgressive(double base, double incPerUnit) {
-        lot.setFineScheme(new ProgressiveScheme(base, incPerUnit));
+    public void changeFineSchemeToProgressive() {
+        lot.setFineScheme(new ProgressiveScheme());
     }
 
     public void changeFineSchemeToHourly(double ratePerUnit) {
@@ -89,22 +95,16 @@ public class ParkingService {
     // - Revenue report 
     // - Occupancy report 
     // - Fine report (outstanding fines)
-    public String ReportSummary() {
+     public String ReportSummary() {
         int total = lot.getTotalSpotCount();
         int occupied = lot.getOccupiedCount();
         double revenue = lot.getTotalRevenue();
-        int rate;
-        if (total == 0) {
-            rate = 0;
-        } else {
-            rate = occupied * 100 / total;
-        }
 
         StringBuilder sb = new StringBuilder();
         sb.append("Reports\n");
         sb.append("Total spots: ").append(total).append("\n");
         sb.append("Occupied: ").append(occupied).append("\n");
-        sb.append("Occupancy rate: ").append(rate).append("%\n");
+        sb.append("Occupancy rate: ").append(total == 0 ? 0 : (occupied * 100 / total)).append("%\n");
         sb.append("Total revenue: RM ").append(revenue).append("\n\n");
 
         sb.append("Current vehicles:\n");
@@ -117,7 +117,7 @@ public class ParkingService {
 
         return sb.toString();
     }
-
+    
     // Write Summary for Admin
     public String AdminSummary(String scheme) {
         StringBuilder sb = new StringBuilder();
@@ -201,4 +201,64 @@ public class ParkingService {
 
         return sb.toString();
     }
+
+    public String CurrentVehiclesReport() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("CURRENT VEHICLES\n");
+
+        var list = lot.getCurrentVehicles();
+        if (list.isEmpty()) {
+            sb.append("No vehicles currently parked.\n");
+        } else {
+            for (String line : list) {
+                sb.append("- ").append(line).append("\n");
+            }
+        }
+        return sb.toString();
+    }
+
+    public String OccupancyReport() {
+        int total = lot.getTotalSpotCount();
+        int occupied = lot.getOccupiedCount();
+        int available = total - occupied;
+        double rate = total == 0 ? 0 : (occupied * 100.0 / total);
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("OCCUPANCY REPORT\n");
+        sb.append("Total spots: ").append(total).append("\n");
+        sb.append("Occupied: ").append(occupied).append("\n");
+        sb.append("Available: ").append(available).append("\n");
+        sb.append("Occupancy rate: ")
+        .append(String.format("%.2f", rate))
+        .append("%\n");
+
+        return sb.toString();
+    }
+
+    public String RevenueReport() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("REVENUE REPORT\n");
+        sb.append("Total revenue collected: RM ")
+        .append(lot.getTotalRevenue())
+        .append("\n");
+
+        return sb.toString();
+    }
+
+    public String FineReport() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("OUTSTANDING FINES REPORT\n");
+
+        var fines = lot.getFinesReport();
+        if (fines.isEmpty()) {
+            sb.append("No unpaid fines.\n");
+        } else {
+            for (String line : fines) {
+                sb.append("- ").append(line).append("\n");
+            }
+        }
+
+        return sb.toString();
+    }
+
 }

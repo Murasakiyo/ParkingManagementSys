@@ -145,18 +145,6 @@ public class ParkingLot {
             if (!f.isPaid()) f.markPaid();
         }
     }
-
-    private double HourlyOverstayFine(LocalDateTime entry, LocalDateTime exit) {
-        long minutes = Duration.between(entry, exit).toMinutes();
-        if (minutes <= 1440) return 0.0; // 24h = 1440 minutes
-
-        long overMinutes = minutes - 1440;
-
-        int overHours = (int) Math.ceil(overMinutes / 60.0);
-        overHours = Math.max(overHours, 1);
-
-        return 20.0 * overHours;
-    }
     // --------------------------------------------------------------------------------------
 
     public Bill buildBill(String plate, LocalDateTime now) {
@@ -205,8 +193,14 @@ public class ParkingLot {
 
 
     public Receipt payAndExit(String plate, Payment payment, LocalDateTime now, boolean payFinesNow) {
-        domain.payment.Bill bill = buildBill(plate, now);
+        Bill bill = buildBill(plate, now);
 
+        Ticket ticket = activeTicketsByPlate.get(bill.getPlate());
+        FineScheme scheme = ticket.getFineSchemeAtEntry();
+
+        if (!scheme.allowsUnpaidExit() && (bill.getFineDueNow() > 0 || bill.getUnpaidFinesPrevious() > 0) && !payFinesNow ) {
+            throw new IllegalStateException("This fine scheme requires paying fines before exit.");
+        }
         // Parking fee must always be paid to exit
         double mustPay = bill.getParkingFee();
 
@@ -218,13 +212,13 @@ public class ParkingLot {
         if (payment.getAmountPaid() < mustPay) {
             throw new IllegalStateException("Insufficient payment. Minimum required: RM " + mustPay);
         }
-
-        // add the new fine to account (unpaid first)
+        
+        // Add the new fine to account (unpaid first)
         if (bill.getFineDueNow() > 0) {
             addUnpaidFine(bill.getPlate(), bill.getFineDueNow(), now);
         }
 
-        // if user chooses to pay fines now, mark them all paid
+        // If user chooses to pay fines now, mark them all paid
         if (payFinesNow) {
             markAllFinesPaid(bill.getPlate());
         }
@@ -235,7 +229,8 @@ public class ParkingLot {
             totalRevenue += bill.getUnpaidFinesPrevious() + bill.getFineDueNow();
         }
 
-        // release spot + remove ticket
+
+        // Release spot + remove ticket
         Ticket t = activeTicketsByPlate.remove(bill.getPlate());
         domain.parking.ParkingSpot spot = getSpotByID(t.getSpotID());
         spot.vacate();

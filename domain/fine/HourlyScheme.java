@@ -16,4 +16,9 @@ public class HourlyScheme implements FineScheme {
     public double compute(int units) {
         return ratePerUnit * units;
     }
+
+    @Override
+    public boolean allowsUnpaidExit() {
+        return true;
+    }
 }
