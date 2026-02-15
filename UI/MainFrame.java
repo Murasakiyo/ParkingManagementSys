@@ -11,8 +11,10 @@ import service.ParkingService;
 import java.awt.*;
 import java.util.List;
 
+// Main UI window of the Parking Management System
 public class MainFrame extends JFrame {
     //-----------------------------------------------------------------------------------------------------------------------
+    // Service layer reference used to access domain layer
     private final ParkingService service;
 
     // Entry fields
@@ -28,23 +30,23 @@ public class MainFrame extends JFrame {
     );
     private final JTable spotsTable = new JTable(spotsModel);
 
-    // Area
+    // Output display areas
     private final JTextArea ticketArea = new JTextArea(10, 60);
     private final JTextArea billArea = new JTextArea(10, 60);
     private final JTextArea reportArea = new JTextArea(20, 60);
     private final JTextArea adminArea = new JTextArea(20, 60);
-    private final JTextArea statusArea = new JTextArea(3, 40);
 
     // Exit fields
     private final JTextField exitPlateField = new JTextField(10);
     private final JComboBox<domain.payment.PaymentMethod> payMethodBox = new JComboBox<>(domain.payment.PaymentMethod.values());
     private final JTextField amountPaidField = new JTextField(8);
 
-    // Admin
+    // Admin fine scheme selection
     private final JComboBox<String> schemeBox = new JComboBox<>(new String[]{"Fixed", "Progressive", "Hourly"});
     private String currentScheme = "Fixed";
 
     // ------------------------------------------------------------------------------------------------------------------------
+     // Constructor initializes UI layout and tab structure
     public MainFrame(ParkingService service) {
         super("Parking Management System");
         this.service = service;
@@ -54,12 +56,13 @@ public class MainFrame extends JFrame {
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
 
+        // Make output areas read-only
         ticketArea.setEditable(false);
-        statusArea.setEditable(false);
         billArea.setEditable(false);
         reportArea.setEditable(false);
         adminArea.setEditable(false);
 
+        // tab structure
         JTabbedPane mainTabs = new JTabbedPane();
         mainTabs.addTab("Entry / Exit", EntryExitPanel());
         mainTabs.addTab("Admin", AdminPanel());
@@ -68,7 +71,7 @@ public class MainFrame extends JFrame {
         add(mainTabs, BorderLayout.CENTER);
     }
 
-
+    // Searches for suitable parking spots based on vehicle details
     private void onSearch() {
         try {
             String plate = plateField.getText();
@@ -82,12 +85,14 @@ public class MainFrame extends JFrame {
         }
     }
 
+    // Park vehicle into chosen spot
     private void onPark() {
         try {
             int row = spotsTable.getSelectedRow();
             if (row < 0) throw new IllegalStateException("Please select a spot from the table.");
             String status = String.valueOf(spotsModel.getValueAt(row, 3));
 
+            // If spot is occupied, throw warning
             if ("OCCUPIED".equals(status)) {
                 throw new IllegalStateException("This spot is already occupied. Select an available spot.");
             }
@@ -98,6 +103,7 @@ public class MainFrame extends JFrame {
             VehicleType type = (VehicleType) vehicleTypeBox.getSelectedItem();
             boolean card = handicappedCardBox.isSelected();
 
+            // generate ticket object and park vehicle into spot
             Ticket t = service.confirmPark(plate, type, card, reservationBox.isSelected(), spotID);
 
             ticketArea.setText(
@@ -133,11 +139,13 @@ public class MainFrame extends JFrame {
         }
     }
 
+    // Calculates bill without completing exit
     private void onCalculateBill() {
         try {
             String plate = exitPlateField.getText();
             Bill bill = service.calculateBill(plate);
 
+            // Build formatted bill output
             StringBuilder sb = new StringBuilder();
             sb.append("BILL (Exit)\n");
             sb.append("Plate: ").append(bill.getPlate()).append("\n");
@@ -167,6 +175,7 @@ public class MainFrame extends JFrame {
         }
     }
 
+    // Processes payment and exits vehicle from parking lot
     private void onPayAndExit() {
         try {
             String plate = exitPlateField.getText();
@@ -178,6 +187,7 @@ public class MainFrame extends JFrame {
 
             domain.payment.Receipt receipt = service.payAndExit(plate, method, amountPaid, payFinesNow);
 
+            // Display receipt details
             billArea.setText(
                 "Receipt:\n" +
                 "Plate: " + receipt.getPlate() + "\n" +
@@ -273,7 +283,7 @@ public class MainFrame extends JFrame {
         return panel;
     }
 
-    // Admin Panel
+    // Admin Panel (allows fine scheme selection and system overview)
     private JPanel AdminPanel() {
         JPanel panel = new JPanel(new BorderLayout());
         JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
@@ -285,7 +295,7 @@ public class MainFrame extends JFrame {
         top.add(applySchemeBtn);
         top.add(refreshBtn);
 
-        // Overstay over 24 HOURS
+        // Apply selected fine scheme to future tickets
         applySchemeBtn.addActionListener(e -> {
             String select = (String) schemeBox.getSelectedItem();
 
@@ -313,6 +323,7 @@ public class MainFrame extends JFrame {
         return panel;
     }
 
+    // Report panel (displays reports)
     private JPanel ReportsPanel() {
         JPanel panel = new JPanel(new BorderLayout());
 
@@ -334,6 +345,7 @@ public class MainFrame extends JFrame {
 
         reportArea.setEditable(false);
 
+        // Generate selected report from service layer
         generateBtn.addActionListener(e -> {
             String selected = (String) reportTypeBox.getSelectedItem();
 

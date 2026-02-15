@@ -201,17 +201,21 @@ public class ParkingLot {
     }
     // --------------------------------------------------------------------------------------
 
+    // Builds a bill containing parking fee, unpaid previous fines, and new fines
     public Bill buildBill(String plate, LocalDateTime now) {
+        // Check is user input is not null
         if (plate == null){
             throw new IllegalArgumentException("Plate cannot be empty.");
         }
         String cleanPlate = plate.trim().toUpperCase();
 
+        // Check if plate is parked in the parking lot
         Ticket ticket = activeTicketsByPlate.get(cleanPlate);
         if (ticket == null) {
             throw new IllegalStateException("No active ticket found for plate: " + cleanPlate);
         }
 
+        // get spot for the vehicle with the ticket
         ParkingSpot spot = getSpotByID(ticket.getSpotID());
 
         int hours = computeChargedHours(ticket.getEntryTime(), now);

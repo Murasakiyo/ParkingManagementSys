@@ -28,18 +28,20 @@ public class ParkingService {
         this.lot = lot;
     }
 
-    
+    // Show table of spots suitable for vehicle
     public List<ParkingSpot> searchSpots(String plate, VehicleType type, boolean handicappedCardHolder) {
         Vehicle v = makeVehicle(plate, type, handicappedCardHolder);
         return lot.findSuitableSpots(v);
     }
 
+    // Confirm vehicle parking spot
     public Ticket confirmPark(String plate, VehicleType type, boolean handicappedCardHolder, 
         boolean hasReservation, String spotID) {
         Vehicle v = makeVehicle(plate, type, handicappedCardHolder);
         return lot.parkVehicle(v, spotID, hasReservation, LocalDateTime.now());
     }
 
+    // Get available spots left in the parking lot
     public int getAvailable(){
         int total = lot.getTotalSpotCount();
         int occupied = lot.getOccupiedCount();
@@ -89,33 +91,6 @@ public class ParkingService {
         lot.setFineScheme(new HourlyScheme(ratePerUnit));
     }
     // ---------------------------------------------------------------------------
-
-    // List of all vehicles currently in the lot 
-    // - Revenue report 
-    // - Occupancy report 
-    // - Fine report (outstanding fines)
-     public String ReportSummary() {
-        int total = lot.getTotalSpotCount();
-        int occupied = lot.getOccupiedCount();
-        double revenue = lot.getTotalRevenue();
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("Reports\n");
-        sb.append("Total spots: ").append(total).append("\n");
-        sb.append("Occupied: ").append(occupied).append("\n");
-        sb.append("Occupancy rate: ").append(total == 0 ? 0 : (occupied * 100 / total)).append("%\n");
-        sb.append("Total revenue: RM ").append(revenue).append("\n\n");
-
-        sb.append("Current vehicles:\n");
-        for (String s : lot.getCurrentVehicles()) sb.append("- ").append(s).append("\n");
-
-        sb.append("\nOutstanding fines:\n");
-        java.util.List<String> fines = lot.getFinesReport();
-        if (fines.isEmpty()) sb.append("(none)\n");
-        else for (String f : fines) sb.append("- ").append(f).append("\n");
-
-        return sb.toString();
-    }
     
     // Write Summary for Admin
     public String AdminSummary(String scheme) {
@@ -201,6 +176,34 @@ public class ParkingService {
         return sb.toString();
     }
 
+    // ---------------------------------------------- Reports -------------------------------------------------------
+    // public String ReportSummary() {
+    //     int total = lot.getTotalSpotCount();
+    //     int occupied = lot.getOccupiedCount();
+    //     double revenue = lot.getTotalRevenue();
+
+    //     StringBuilder sb = new StringBuilder();
+    //     sb.append("Reports\n");
+    //     sb.append("Total spots: ").append(total).append("\n");
+    //     sb.append("Occupied: ").append(occupied).append("\n");
+    //     sb.append("Occupancy rate: ").append(total == 0 ? 0 : (occupied * 100 / total)).append("%\n");
+    //     sb.append("Total revenue: RM ").append(revenue).append("\n\n");
+
+    //     sb.append("Current vehicles:\n");
+    //     for (String s : lot.getCurrentVehicles()) sb.append("- ").append(s).append("\n");
+
+    //     sb.append("\nOutstanding fines:\n");
+    //     java.util.List<String> fines = lot.getFinesReport();
+    //     if (fines.isEmpty()) sb.append("(none)\n");
+    //     else for (String f : fines) sb.append("- ").append(f).append("\n");
+
+    //     return sb.toString();
+    // }
+
+    // List of all vehicles currently in the lot 
+    // - Revenue report 
+    // - Occupancy report 
+    // - Fine report (outstanding fines)
     public String CurrentVehiclesReport() {
         StringBuilder sb = new StringBuilder();
         sb.append("CURRENT VEHICLES\n");
@@ -259,5 +262,6 @@ public class ParkingService {
 
         return sb.toString();
     }
+    // ---------------------------------------------------------------------------------------------------------
 
 }
