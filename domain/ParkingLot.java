@@ -10,22 +10,32 @@ import domain.payment.*;
 import domain.fine.*;
 
 public class ParkingLot {
+
+    // parking lot: floors -> rows -> spots
     private final List<Floor> floors = new ArrayList<>();
+
+     // Active parking sessions indexed by vehicle plate number
     private final Map<String, Ticket> activeTicketsByPlate = new HashMap<>();
+
+    // Total revenue collected from successful payments
     private double totalRevenue = 0.0;
 
+    // Outstanding and paid fine history indexed by vehicle plate number
     private final Map<String, java.util.List<FineRecord>> finesByPlate = new HashMap<>();
+
+    // Reference to FineCalculator to compute fines throughout the system
     private final FineCalculator fineCalculator = new FineCalculator();
 
-    private FineScheme currentScheme = new FixedScheme(50.0); // pick any default you want
+    private FineScheme currentScheme = new FixedScheme(50.0);
 
+    // Used in app.java
     public ParkingLot() {
         buildParkingLot();
     }
 
+    //Build layout for parking lot
     private void buildParkingLot() {
         // 5 floors, Each floor has 2 rows, Each row has 6 spots (2 COMPACT, 2 REGULAR, 1 HANDICAPPED, 1 RESERVED)
-
         for (int floorNum = 1; floorNum <= 3; floorNum++) {
             Floor floor = new Floor(floorNum);
 
@@ -47,33 +57,54 @@ public class ParkingLot {
         }
     }
 
+    // Returns a parkingspot object with its row ID
     private ParkingSpot makeSpot(int floorNum, int rowNum, int spotNum, SpotType type, double rate) {
         String id = "F" + floorNum + "-R" + rowNum + "-S" + spotNum;
         return new ParkingSpot(id, type, rate);
     }
 
+    // Function returning a list of suitable spots based on ParkingSpot
     public List<ParkingSpot> findSuitableSpots(Vehicle v) {
+
+        // List of all spots the Vehicle (v) can occupy (into table)
         List<ParkingSpot> result = new ArrayList<>();
-        for (Floor f : floors) {
-            for (Row r : f.getRows()) {
-                for (ParkingSpot s : r.getSpots()) {
+
+        for (int i = 0; i < floors.size(); i++) {
+            // Get the current floor
+            Floor f = floors.get(i);
+            // Get all rows belonging to the current floor
+            List<Row> rows = f.getRows();
+
+            // Check each row within the current floor
+            for (int j = 0; j < rows.size(); j++) {
+                Row r = rows.get(j);
+
+                List<ParkingSpot> spots = r.getSpots();
+
+                // Check each parking spot
+                for (int k = 0; k < spots.size(); k++) {
+                    ParkingSpot s = spots.get(k);
+
+                    // Check if vehicle fits the parking spot
                     if (s.canFit(v)) {
                         result.add(s);
                     }
                 }
             }
         }
+        // Return the list of suitable parking spots
         return result;
     }
 
+    // Create ticket object for the vehicle
     public Ticket parkVehicle(Vehicle v, String spotID, boolean hasReservation, LocalDateTime now) {
         if (activeTicketsByPlate.containsKey(v.getPlate())) {
             throw new IllegalStateException("This plate already has an active ticket: " + v.getPlate());
         }
-
         ParkingSpot spot = getSpotByID(spotID);
         spot.occupy(v);
 
+        // Ticket is generated using the exact time vehicle is parked
         String ticketID = "T-" + v.getPlate() + "-" + System.currentTimeMillis();
         FineScheme schemeSnapshot = this.currentScheme;
         Ticket ticket = new Ticket(ticketID, v.getPlate(), spotID, now, hasReservation, schemeSnapshot);
@@ -89,18 +120,31 @@ public class ParkingLot {
         return floors;
     }
 
+    // Get parking spot by vehicle ID (For exiting)
     private ParkingSpot getSpotByID(String spotID) {
-        for (Floor f : floors) {
-            for (Row r : f.getRows()) {
-                for (ParkingSpot s : r.getSpots()) {
-                    if (s.getSpotID().equals(spotID)) return s;
+
+        for (int i = 0; i < floors.size(); i++) {
+            Floor floor = floors.get(i);
+            List<Row> rows = floor.getRows();
+
+            for (int j = 0; j < rows.size(); j++) {
+                Row row = rows.get(j);
+                List<ParkingSpot> spots = row.getSpots();
+
+                for (int k = 0; k < spots.size(); k++) {
+                    ParkingSpot spot = spots.get(k);
+                    if (spot.getSpotID().equals(spotID)) {
+                        return spot;
+                    }
                 }
             }
         }
         throw new IllegalArgumentException("Spot not found: " + spotID);
     }
 
+    // Get amount of minutes vehicle is parked
     private int computeChargedHours(LocalDateTime entry, LocalDateTime exit) {
+        // Converts duration to billable hours using ceiling rounding, with a minimum of 1 hour
         long minutes = java.time.Duration.between(entry, exit).toMinutes();
         if (minutes < 0) {
             throw new IllegalArgumentException("Exit time cannot be before entry time.");
@@ -109,11 +153,8 @@ public class ParkingLot {
         return Math.max(hours, 1);
     }
 
-    // private ParkingSpot getSpotForTicket(Ticket t) {
-    //     return getSpotByID(t.getSpotID());
-    // }
-
     // ---------------------------- FINES ---------------------------------------------------
+    // Updates fine scheme for future parking entries
     public void setFineScheme(FineScheme scheme) {
         if (scheme == null) {
             throw new IllegalArgumentException("Fine scheme cannot be null.");
@@ -121,6 +162,7 @@ public class ParkingLot {
         this.currentScheme = scheme;
     }
 
+    // Compile all fines recorded for the specific plate
     private double getUnpaidFineTotal(String plate) {
         java.util.List<FineRecord> list = finesByPlate.get(plate);
         if (list == null) return 0.0;
@@ -132,12 +174,24 @@ public class ParkingLot {
         return sum;
     }
 
+    // Add unpaid fine
     private void addUnpaidFine(String plate, double amount, LocalDateTime now) {
-        if (amount <= 0) return;
-        finesByPlate.computeIfAbsent(plate, k -> new ArrayList<>())
-        .add(new FineRecord(plate, FineReason.OVER_24HOURS, amount, now));
+        if (amount <= 0) {
+            return;
+        }
+
+        // create a new fine record list for new vehicle plates that is fined
+        List<FineRecord> list = finesByPlate.get(plate);
+        if (list == null) {
+            list = new ArrayList<>();
+            finesByPlate.put(plate, list);
+        }
+        // Add the new fine record
+        FineRecord fine = new FineRecord(plate, FineReason.OVER_24HOURS, amount, now);
+        list.add(fine);
     }
 
+    // Get all the fine record from the specific plate and mark is as paid
     private void markAllFinesPaid(String plate) {
         java.util.List<FineRecord> list = finesByPlate.get(plate);
         if (list == null) return;
@@ -175,9 +229,7 @@ public class ParkingLot {
         }
 
         double parkingFee = rate * hours;
-
         double unpaidPrevious = getUnpaidFineTotal(cleanPlate);
-
         double fineNow = 0.0;
 
         // Over 24 hours fine
@@ -198,9 +250,11 @@ public class ParkingLot {
         Ticket ticket = activeTicketsByPlate.get(bill.getPlate());
         FineScheme scheme = ticket.getFineSchemeAtEntry();
 
+        // For fixed and progressive fine scheme, must pay fully before being able to leave
         if (!scheme.allowsUnpaidExit() && (bill.getFineDueNow() > 0 || bill.getUnpaidFinesPrevious() > 0) && !payFinesNow ) {
             throw new IllegalStateException("This fine scheme requires paying fines before exit.");
         }
+
         // Parking fee must always be paid to exit
         double mustPay = bill.getParkingFee();
 
@@ -208,17 +262,16 @@ public class ParkingLot {
         if (payFinesNow) {
             mustPay = bill.getTotalDue(); // parking + unpaid previous + fine due now
         }
-
         if (payment.getAmountPaid() < mustPay) {
             throw new IllegalStateException("Insufficient payment. Minimum required: RM " + mustPay);
         }
         
-        // Add the new fine to account (unpaid first)
+        // Add the new fine to account if fine unpaid during this time
         if (bill.getFineDueNow() > 0) {
             addUnpaidFine(bill.getPlate(), bill.getFineDueNow(), now);
         }
 
-        // If user chooses to pay fines now, mark them all paid
+        // If customer chooses to pay fines now, mark them all paid
         if (payFinesNow) {
             markAllFinesPaid(bill.getPlate());
         }
@@ -229,17 +282,18 @@ public class ParkingLot {
             totalRevenue += bill.getUnpaidFinesPrevious() + bill.getFineDueNow();
         }
 
-
         // Release spot + remove ticket
         Ticket t = activeTicketsByPlate.remove(bill.getPlate());
         domain.parking.ParkingSpot spot = getSpotByID(t.getSpotID());
         spot.vacate();
 
+        // Get change if customer pay extra
         double change = payment.getAmountPaid() - mustPay;
 
-        // if they didn't pay fines, remaining unpaid fine total should be visible on receipt
+        // Remaining unpaid fine total should be visible on receipt
         double remainingUnpaid = getUnpaidFineTotal(bill.getPlate());
 
+        // Return receipt
         return new Receipt(
                 bill.getPlate(),
                 mustPay,      // amount charged in this transaction
@@ -251,8 +305,11 @@ public class ParkingLot {
         );
     }
     
+    // ------------------------------------------------Methods for Reports --------------------------------------------------
+    // Total revenue for admin/reporting
     public double getTotalRevenue() { return totalRevenue; }
 
+    //
     public int getOccupiedCount() {
         int occupied = 0;
         for (Floor f : floors) {
@@ -265,6 +322,7 @@ public class ParkingLot {
         return occupied;
     }
 
+    // Get total spot from the overall parking lot (row.size * floors)
     public int getTotalSpotCount() {
         int total = 0;
         for (Floor f : floors) {
@@ -275,6 +333,7 @@ public class ParkingLot {
         return total;
     }
 
+    // return a list of vehicles currently parked
     public java.util.List<String> getCurrentVehicles() {
         java.util.List<String> list = new java.util.ArrayList<>();
         for (Ticket t : activeTicketsByPlate.values()) {
@@ -283,7 +342,7 @@ public class ParkingLot {
         return list;
     }
 
-    // ---------- Reports for fines -------------------------
+    // Reports for fines
     public java.util.List<String> getFinesReport() {
         java.util.List<String> out = new java.util.ArrayList<>();
         for (var e : finesByPlate.entrySet()) {

@@ -2,12 +2,6 @@ package service;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollPane;
-
 import domain.ParkingLot;
 import domain.Ticket;
 import domain.Vehicle;
@@ -23,13 +17,18 @@ import domain.payment.*;
 import domain.fine.*;
 
 public class ParkingService {
+
+    // Encapsulation (To avoid having the UI layer interact directly with parkinglot, only parking service)
+    // Stores address of ParkingLot object, service manages the same lot at all times
     private final ParkingLot lot;
 
-    // constructor
+    // Constructor
     public ParkingService(ParkingLot lot) {
+        // Assign the lot from this class with the reference from App.java
         this.lot = lot;
     }
 
+    
     public List<ParkingSpot> searchSpots(String plate, VehicleType type, boolean handicappedCardHolder) {
         Vehicle v = makeVehicle(plate, type, handicappedCardHolder);
         return lot.findSuitableSpots(v);

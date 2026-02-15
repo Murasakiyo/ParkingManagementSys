@@ -8,7 +8,7 @@ import service.ParkingService;
 public class App {
     public static void main(String[] args) {
 
-        //Create the domain root object
+        //Create the parking lot object
         ParkingLot lot = new ParkingLot();
 
         //Create the service layer

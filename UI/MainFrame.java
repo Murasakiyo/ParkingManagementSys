@@ -33,6 +33,7 @@ public class MainFrame extends JFrame {
     private final JTextArea billArea = new JTextArea(10, 60);
     private final JTextArea reportArea = new JTextArea(20, 60);
     private final JTextArea adminArea = new JTextArea(20, 60);
+    private final JTextArea statusArea = new JTextArea(3, 40);
 
     // Exit fields
     private final JTextField exitPlateField = new JTextField(10);
@@ -42,7 +43,6 @@ public class MainFrame extends JFrame {
     // Admin
     private final JComboBox<String> schemeBox = new JComboBox<>(new String[]{"Fixed", "Progressive", "Hourly"});
     private String currentScheme = "Fixed";
-    private int increment = 1;
 
     // ------------------------------------------------------------------------------------------------------------------------
     public MainFrame(ParkingService service) {
@@ -55,6 +55,7 @@ public class MainFrame extends JFrame {
         setLayout(new BorderLayout());
 
         ticketArea.setEditable(false);
+        statusArea.setEditable(false);
         billArea.setEditable(false);
         reportArea.setEditable(false);
         adminArea.setEditable(false);
@@ -76,8 +77,6 @@ public class MainFrame extends JFrame {
 
             List<ParkingSpot> spots = service.searchSpots(plate, type, card);
             refillSpotsTable(spots);
-
-            ticketArea.setText("Found " + service.getAvailable() + " suitable available spots.\nSelect one and click Park.");
         } catch (Exception ex) {
             JOptionPane.showMessageDialog(this, ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
@@ -106,7 +105,9 @@ public class MainFrame extends JFrame {
                     "Ticket ID: " + t.getTicketID() + "\n" +
                     "Plate: " + t.getPlate() + "\n" +
                     "Spot: " + t.getSpotID() + "\n" +
-                    "Entry time: " + t.getEntryTime() + "\n"
+                    "Entry time: " + t.getEntryTime() + "\n" +
+                    "Found " + service.getAvailable() + " suitable available spots.\nSelect one and click Park."
+
             );
 
             // refresh table so chosen spot becomes occupied and disappears from suitable list
